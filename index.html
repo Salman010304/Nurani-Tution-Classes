@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nurani Tuition | Student Attendance & Progress</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <link rel="manifest" id="my-manifest">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-gradient: linear-gradient(135deg, #6366f1, #4338ca);
+            --bg: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.95); /* Slight transparency */
+            --text: #0f172a;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --holiday: #f97316;
+            --radius: 16px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.3);
+            --sidebar-width: 260px;
+        }
+
+        [data-theme='dark'] {
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.95);
+            --text: #f8fafc;
+            --text-light: #94a3b8;
+            --border: #334155;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            background-color: var(--bg); 
+            color: var(--text); 
+            overflow-x: hidden; 
+            font-size: 14px; 
+            transition: background-color 0.3s, color 0.3s; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        [data-theme='dark'] ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-4 { gap: 1rem; }
+        .w-full { width: 100%; }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+
+        /* Layout */
+        #app-layout { display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar - Glassmorphism */
+        aside { 
+            width: var(--sidebar-width); 
+            background: var(--card-bg); 
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-right: 1px solid var(--border); 
+            padding: 1.5rem; 
+            display: flex; 
+            flex-direction: column; 
+            z-index: 50; 
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .logo { font-size: 1.4rem; font-weight: 800; color: var(--primary); margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; letter-spacing: -0.025em; }
+        
+        .nav-link { 
+            display: flex; align-items: center; gap: 12px; padding: 0.85rem 1rem; 
+            border-radius: 12px; text-decoration: none; color: var(--text-light); 
+            font-weight: 600; cursor: pointer; margin-bottom: 0.5rem; transition: all 0.2s; 
+        }
+        .nav-link:hover { background: rgba(79, 70, 229, 0.08); color: var(--primary); transform: translateX(4px); }
+        .nav-link.active { background: var(--primary-gradient); color: white; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); transform: translateX(4px); }
+        
+        main { flex: 1; overflow-y: auto; padding: 1.5rem; position: relative; scroll-behavior: smooth; }
+        
+        /* Teacher Background */
+        main.teacher-bg {
+            background-image: linear-gradient(rgba(248, 250, 252, 0.92), rgba(248, 250, 252, 0.92)), url('https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=2000&auto=format&fit=crop');
+            background-size: cover;
+            background-attachment: fixed;
+        }
+        [data-theme='dark'] main.teacher-bg {
+            background-image: linear-gradient(rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.95)), url('https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=2000&auto=format&fit=crop');
+        }
+        
+        /* Cards & Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+        
+        .card { 
+            background: var(--card-bg); 
+            backdrop-filter: blur(8px);
+            border-radius: var(--radius); 
+            padding: 1.5rem; 
+            box-shadow: var(--shadow); 
+            border: 1px solid var(--border); 
+            position: relative; 
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        /* Interactive Cards Hover Effect */
+        .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+        
+        /* Typography */
+        h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem; letter-spacing: -0.03em; }
+        h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 1rem; }
+        h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text); }
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .text-gray { color: var(--text-light); }
+        
+        /* Buttons */
+        .btn { 
+            padding: 0.6rem 1.2rem; border-radius: 10px; font-weight: 600; 
+            cursor: pointer; border: none; display: inline-flex; align-items: center; 
+            justify-content: center; gap: 8px; transition: all 0.2s; font-size: 0.9rem; 
+        }
+        .btn:active { transform: scale(0.96); }
+        
+        .btn-primary { 
+            background: var(--primary-gradient); color: white; 
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); 
+        }
+        .btn-primary:hover { box-shadow: 0 6px 10px -1px rgba(79, 70, 229, 0.3); filter: brightness(1.05); }
+        
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: rgba(79, 70, 229, 0.05); }
+        
+        .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+        
+        .btn-icon { background: transparent; border: none; cursor: pointer; padding: 6px; border-radius: 8px; transition: 0.2s; color: var(--text-light); }
+        .btn-icon:hover { color: var(--primary); background: rgba(79, 70, 229, 0.1); }
+
+        /* Forms */
+        input, select, textarea { 
+            width: 100%; padding: 0.75rem; border-radius: 10px; 
+            border: 1px solid var(--border); background: var(--bg); 
+            color: var(--text); margin-bottom: 1rem; font-size: 0.9rem; 
+            transition: all 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+            background: var(--card-bg);
+        }
+        label { display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.85rem; color: var(--text-light); }
+
+        /* Mobile */
+        .menu-toggle { display: none; position: fixed; top: 1rem; left: 1rem; z-index: 60; background: var(--card-bg); border: 1px solid var(--border); padding: 0.5rem; border-radius: 8px; color: var(--text); box-shadow: var(--shadow); }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; backdrop-filter: blur(4px); transition: opacity 0.3s; }
+
+        @media (max-width: 768px) {
+            #app-layout { flex-direction: column; }
+            aside { position: fixed; inset: 0 0 0 auto; width: 280px; transform: translateX(100%); left: auto; right: 0; border-left: 1px solid var(--border); height: 100%; box-shadow: -10px 0 30px rgba(0,0,0,0.1); }
+            aside.open { transform: translateX(0); }
+            .menu-toggle { display: block; }
+            .sidebar-overlay.active { display: block; }
+            main { padding: 5rem 1rem 2rem 1rem; }
+            .grid { grid-template-columns: 1fr; }
+        }
+
+        /* Specific Components */
+        /* Tuition Row (Admin-like) */
+        .tuition-row { 
+            display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 0.5fr; gap: 1rem; 
+            align-items: center; padding: 1.2rem; border-bottom: 1px solid var(--border); 
+            background: var(--card-bg); border-radius: 12px; margin-bottom: 0.8rem; 
+            border: 1px solid var(--border); transition: transform 0.2s;
+        }
+        .tuition-row:hover { transform: scale(1.005); border-color: var(--primary); box-shadow: var(--shadow); }
+
+        @media (max-width: 768px) { 
+            .tuition-row { grid-template-columns: 1fr; gap: 0.8rem; padding: 1rem; } 
+            .mobile-label { display: inline-block; width: 100px; font-weight: bold; color: var(--text-light); font-size: 0.75rem; margin-bottom: 4px; }
+        }
+        @media (min-width: 769px) { .mobile-label { display: none; } }
+
+        .att-toggle { 
+            cursor: pointer; width: 34px; height: 34px; border-radius: 10px; 
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: 800; font-size: 0.85rem; border: 2px solid var(--border); 
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        }
+        .att-toggle:hover { transform: scale(1.1); }
+        .att-p { background: var(--success); color: white; border-color: var(--success); box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3); }
+        .att-a { background: var(--danger); color: white; border-color: var(--danger); box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3); }
+        .att-h { background: var(--holiday); color: white; border-color: var(--holiday); box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.3); }
+
+        .hw-toggle { cursor: pointer; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; border: 2px solid var(--border); transition: 0.2s; font-weight: 700; }
+        .hw-toggle:hover { transform: scale(1.1); }
+        .hw-done { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+        .hw-miss { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+        .hw-neutral { background: transparent; border-color: var(--border); color: var(--text-light); }
+        
+        [data-theme='dark'] .hw-neutral { border-color: #475569; }
+
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .bg-green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .bg-red { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .bg-yellow { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+        /* Login Screen */
+        #auth-view { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=2022&auto=format&fit=crop') center/cover; position: relative; }
+        /* NEW: Changed background to white/light overlay */
+        #auth-view::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(240, 249, 255, 0.9)); backdrop-filter: blur(5px); }
+        
+        .login-card { 
+            background: rgba(255, 255, 255, 0.9); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 2.5rem; 
+            border-radius: 24px; 
+            width: 90%; 
+            max-width: 420px; 
+            position: relative; 
+            z-index: 10; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2); 
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.8);
+            animation: fadeIn 0.6s ease-out;
+            margin: 1rem;
+        }
+        
+        /* NEW: Logo Style */
+        .login-logo {
+            width: 90px;
+            height: 90px;
+            object-fit: contain;
+            margin-bottom: 1rem;
+            border-radius: 50%;
+            background: white;
+            padding: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* NEW: Gujarati Title */
+        .gujarati-title {
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 1.3rem;
+            margin-top: -5px;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0;
+        }
+        
+        /* Role Switcher */
+        .role-switch { display: flex; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 14px; margin-bottom: 25px; }
+        .role-btn { flex: 1; padding: 12px; border: none; background: transparent; border-radius: 10px; font-weight: 700; color: #64748b; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; }
+        .role-btn.active { background: white; color: var(--primary); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); transform: scale(1.02); }
+        .role-btn:hover:not(.active) { color: var(--primary); background: rgba(255,255,255,0.5); }
+
+        /* Modal */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(8px); animation: fadeIn 0.2s ease-out; }
+        .modal-content { 
+            background: var(--card-bg); padding: 2rem; border-radius: 24px; width: 95%; max-width: 600px; 
+            max-height: 90vh; overflow-y: auto; position: relative; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); 
+            border: 1px solid var(--border); 
+            transform: translateY(0);
+            animation: fadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Alert Box */
+        .alert-box { background: #fff1f2; border-left: 4px solid var(--danger); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #881337; }
+        [data-theme='dark'] .alert-box { background: rgba(220, 38, 38, 0.15); color: #fecaca; }
+        .alert-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 8px; margin-bottom: 6px; }
+        
+        /* Table Styles */
+        .styled-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.9rem; }
+        .styled-table th { 
+            text-align: left; padding: 14px 16px; background-color: var(--bg); 
+            color: var(--text-light); font-weight: 700; border-bottom: 2px solid var(--border); 
+            position: sticky; top: 0; z-index: 10;
+        }
+        .styled-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; transition: background 0.1s; }
+        .styled-table tr:hover td { background-color: rgba(79, 70, 229, 0.03); }
+        .styled-table tr:last-child td { border-bottom: none; }
+        
+        /* Syllabus Accordion */
+        .syllabus-subject { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 1rem; overflow: hidden; background: var(--card-bg); transition: box-shadow 0.2s; }
+        .syllabus-subject:hover { box-shadow: var(--shadow); }
+        .syllabus-header { background: rgba(79, 70, 229, 0.03); padding: 14px 20px; cursor: pointer; font-weight: 700; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .syllabus-body { display: none; padding: 0; }
+        .syllabus-body.open { display: block; animation: fadeIn 0.2s; }
+        .syllabus-item { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .syllabus-item:last-child { border-bottom: none; }
+
+        /* Theme Toggle */
+        .theme-btn { 
+            position: absolute; top: 1.5rem; right: 1.5rem; background: var(--bg); 
+            border: 1px solid var(--border); padding: 10px; border-radius: 50%; 
+            color: var(--text); cursor: pointer; box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+        .theme-btn:hover { transform: rotate(15deg); }
+        
+        /* Rank Badge */
+        .rank-badge { 
+            min-width: 28px; height: 28px; border-radius: 50%; 
+            display: inline-flex; align-items: center; justify-content: center; 
+            font-weight: 800; font-size: 0.8rem; margin-right: 12px; 
+        }
+        .rank-item {
+            display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border);
+        }
+        .rank-item:last-child { border-bottom: none; }
+        .rank-name { flex: 1; font-weight: 600; color: var(--text); font-size: 0.9rem; line-height: 1.2; }
+        .rank-perc { font-weight: 800; font-size: 0.95rem; }
+        /* Colors matching the screenshot somewhat */
+        .bg-green-soft { background: #dcfce7; color: #166534; }
+        .bg-red-soft { background: #fee2e2; color: #991b1b; }
+        .text-green-dark { color: #15803d; }
+        .text-red-dark { color: #b91c1c; }
+    </style>
+</head>
+<body>
+
+    <!-- AUTHENTICATION -->
+    <div id="auth-view">
+        <div class="login-card">
+            <!-- NEW: Logo Added -->
+            <img src="https://cdn-icons-png.flaticon.com/512/3413/3413535.png" alt="Nurani Logo" class="login-logo">
+            
+            <h2 style="color:var(--primary); font-weight:900; margin-bottom:0.2rem; letter-spacing: -0.5px; font-size: 1.8rem; line-height: 1.2;">NURANI TUITION CLASSES</h2>
+            
+            <!-- NEW: Gujarati Title Added -->
+            <div class="gujarati-title">નુરાની ટ્યુશન ક્લાસેસ</div>
+            
+            <p style="font-size:0.9rem; color:#64748b; margin-bottom:2rem; font-weight:500;">Excellence in Education</p>
+            
+            <!-- Role Toggle -->
+            <div class="role-switch">
+                <button class="role-btn active" id="btn-parent" onclick="window.switchRole('parent')">Parent Login</button>
+                <button class="role-btn" id="btn-teacher" onclick="window.switchRole('teacher')">Teacher Login</button>
+            </div>
+
+            <div style="text-align:left;">
+                <label>Email</label>
+                <input type="email" id="login-email" placeholder="user@example.com">
+                
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="••••••••">
+            </div>
+            
+            <button class="btn btn-primary" style="width:100%; margin-top:1rem; padding: 1rem; font-size: 1rem;" onclick="window.handleLogin()">Secure Login</button>
+            <p id="login-error" style="color:var(--danger); font-size:0.8rem; margin-top:1rem;" class="hidden"></p>
+            
+            <div class="mt-4 text-xs text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" onclick="window.resetSchoolCode()">Reset School Code</div>
+            
+            <button id="pwa-install" class="btn btn-outline w-full mt-4 hidden"><i class="fa-solid fa-download"></i> Install App</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app-view" class="hidden">
+        <div class="sidebar-overlay" onclick="window.toggleSidebar()"></div>
+        <button class="menu-toggle" onclick="window.toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        
+        <div id="app-layout">
+            <aside id="sidebar">
+                <div class="logo"><i class="fa-solid fa-graduation-cap"></i> Portal</div>
+                <button class="theme-btn" onclick="window.toggleTheme()"><i class="fa-solid fa-moon"></i></button>
+                
+                <!-- Navigation -->
+                <nav id="nav-container">
+                    <!-- Links injected by JS based on Role -->
+                </nav>
+
+                <div style="margin-top:auto; padding-top:1rem; border-top:1px solid var(--border);">
+                    <div id="backup-ui" class="hidden mb-3">
+                        <button class="btn btn-sm btn-outline w-full mb-2" onclick="window.exportData()">Backup Data (JSON)</button>
+                        <button class="btn btn-sm btn-outline w-full" onclick="document.getElementById('restore-input').click()">Restore Data</button>
+                        <input type="file" id="restore-input" class="hidden" accept=".json" onchange="window.importData(this)">
+                    </div>
+
+                    <!-- Parent Language Switcher -->
+                    <div id="lang-switcher" class="hidden mb-4">
+                        <label class="text-xs text-gray uppercase">Language / ભાષા</label>
+                        <select id="lang-sel" onchange="window.setLanguage(this.value)">
+                            <option value="en">English</option>
+                            <option value="gu">Gujarati (ગુજરાતી)</option>
+                            <option value="hi">Hindi</option>
+                        </select>
+                    </div>
+                    <div id="user-info" style="font-weight:700; font-size:0.85rem; margin-bottom:0.5rem;"></div>
+                    <button class="btn btn-outline btn-sm" style="width:100%" onclick="window.handleLogout()">Logout</button>
+                </div>
+            </aside>
+
+            <main id="main-content">
+                <!-- Dynamic Content -->
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL CONTAINER -->
+    <div id="modal-container" class="hidden"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyAV8DEcK8naZn_UPvrPcOh4XUibnbLbBj4",
+          authDomain: "prolifeworkandtution.firebaseapp.com",
+          projectId: "prolifeworkandtution",
+          storageBucket: "prolifeworkandtution.firebasestorage.app",
+          messagingSenderId: "346483255297",
+          appId: "1:346483255297:web:8933f10976ae35c2a67800"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        const appId = "prolife-v3-final";
+        const SCHOOL_ID = "G64RKth0RwWnxxOqUdjhquD6GPI2"; 
+
+        // Global State
+        let currentUser = null;
+        let userRole = null; 
+        let selectedLoginRole = 'parent'; 
+        let schoolId = SCHOOL_ID; 
+        let userProfile = null; 
+        let appData = { students: [], attendance: [], homework: [], logs: [], syllabus: [], timetables: [] };
+        let activePage = 'dashboard';
+        let currentLang = 'en';
+        let analyticsChart = null;
+        let hwChart = null;
+        let deferredPrompt;
+
+        const ABSENT_REASONS = [
+            "Sick / Health Issue", "Fever / Cold", "Family Function", "Out of Station", 
+            "Medical Appointment", "Personal Reason", "Religious Occasion", "Emergency at Home", 
+            "Transport Issue", "Weather Related Issue", "Parent Did Not Inform", "Reason Not Provided"
+        ];
+
+        // Translations Dictionary
+        const translations = {
+            en: { 
+                "Dashboard": "Dashboard", "Attendance": "Attendance", "Homework": "Homework", "Reports": "Reports", "My Child": "My Child", "Logout": "Logout", "Present": "Present", "Absent": "Absent", "Holiday": "Holiday", "Reason": "Reason", "Status": "Status", "Date": "Date", "Day": "Day", "Given": "Given", "Not Given": "Not Given", "Done": "Done", "Pending": "Pending", "Assign": "Assign", "Check": "Check", "Yesterday HW": "Yesterday HW", "Tomorrow HW": "Tomorrow HW", "Timetable": "Timetable", "Subject": "Subject", "Time": "Time", "Today's Status": "Today's Status", "Yesterday": "Yesterday", "Today": "Today", "Details": "Details", "Given Today": "Given Today", "Completed": "Completed", "Not Completed": "Not Completed",
+                "Monday": "Monday", "Tuesday": "Tuesday", "Wednesday": "Wednesday", "Thursday": "Thursday", "Friday": "Friday", "Saturday": "Saturday", "Sunday": "Sunday", "No logs": "No records found", "Yes": "Yes", "No": "No", "This Month": "This Month", "Previous Month": "Previous Month",
+                // Absent Reasons
+                "Sick / Health Issue": "Sick / Health Issue", "Fever / Cold": "Fever / Cold", "Family Function": "Family Function", "Out of Station": "Out of Station", "Medical Appointment": "Medical Appointment", "Personal Reason": "Personal Reason", "Religious Occasion": "Religious Occasion", "Emergency at Home": "Emergency at Home", "Transport Issue": "Transport Issue", "Weather Related Issue": "Weather Related Issue", "Parent Did Not Inform": "Parent Did Not Inform", "Reason Not Provided": "Reason Not Provided"
+            },
+            gu: { 
+                "Dashboard": "ડેશબોર્ડ", "Attendance": "હાજરી", "Homework": "હોમવર્ક", "Reports": "અહેવાલ", "My Child": "મારું બાળક", "Logout": "લોગ આઉટ", "Present": "હાજર", "Absent": "ગેરહાજર", "Holiday": "રજા", "Reason": "કારણ", "Status": "સ્થિતિ", "Date": "તારીખ", "Day": "વાર", "Given": "આપેલ", "Not Given": "આપેલ નથી", "Done": "પૂર્ણ", "Pending": "બાકી", "Assign": "સોંપો", "Check": "તપાસો", "Yesterday HW": "ગઈકાલનું ગૃહકાર્ય", "Tomorrow HW": "આવતીકાલ માટે", "Timetable": "સમયપત્રક", "Subject": "વિષય", "Time": "સમય", "Today's Status": "આજની સ્થિતિ", "Yesterday": "ગઈકાલ", "Today": "આજ", "Details": "વિગત", "Given Today": "આજે આપેલ", "Completed": "પૂર્ણ", "Not Completed": "અપૂર્ણ", "No logs": "કોઈ રેકોર્ડ નથી", "Yes": "હા", "No": "ના", "This Month": "આ મહિનો", "Previous Month": "ગયે મહિને",
+                "Monday": "સોમવાર", "Tuesday": "મંગળવાર", "Wednesday": "બુધવાર", "Thursday": "ગુરુવાર", "Friday": "શુક્રવાર", "Saturday": "શનિવાર", "Sunday": "રવિવાર",
+                // Absent Reasons
+                "Sick / Health Issue": "બીમારી / સ્વાસ્થ્ય સમસ્યા", "Fever / Cold": "તાવ / શરદી", "Family Function": "પરિવારનું કાર્યક્રમ", "Out of Station": "ગામ બહાર", "Medical Appointment": "ડૉક્ટરની મુલાકાત", "Personal Reason": "વ્યક્તિગત કારણ", "Religious Occasion": "ધાર્મિક પ્રસંગ", "Emergency at Home": "ઘરે ઇમરજન્સી", "Transport Issue": "વાહન વ્યવહારની સમસ્યા", "Weather Related Issue": "હવામાનની સમસ્યા", "Parent Did Not Inform": "માતા-પિતાએ જાણ કરી નથી", "Reason Not Provided": "કારણ આપેલ નથી"
+            },
+            hi: { 
+                "Dashboard": "डैशबोर्ड", "Attendance": "उपस्थिति", "Homework": "गृहकार्य", "Reports": "रिपोर्ट", "My Child": "मेरा बच्चा", "Logout": "लॉग आउट", "Present": "उपस्थित", "Absent": "अनुपस्थित", "Holiday": "छुट्टी", "Reason": "कारण", "Status": "स्थिति", "Date": "तारीख", "Day": "दिन", "Given": "दिया गया", "Not Given": "नहीं दिया", "Done": "पूर्ण", "Pending": "लंबित", "Assign": "सौंपें", "Check": "जांचें", "Yesterday HW": "कल का कार्य", "Tomorrow HW": "कल के लिए", "Timetable": "समय सारिणी", "Subject": "विषय", "Time": "समय", "Today's Status": "आज की स्थिति", "Yesterday": "कल", "Today": "आज", "Details": "विवरण", "Given Today": "आज दिया गया", "Completed": "पूर्ण", "Not Completed": "अपूर्ण", "No logs": "कोई रिकॉर्ड नहीं", "Yes": "हाँ", "No": "नहीं", "This Month": "इस महीने", "Previous Month": "पिछले महीने",
+                "Monday": "सोमवार", "Tuesday": "मंगलवार", "Wednesday": "बुधवार", "Thursday": "गुरुवार", "Friday": "शुक्रवार", "Saturday": "शनिवार", "Sunday": "रविवार",
+                // Absent Reasons
+                "Sick / Health Issue": "बीमारी / स्वास्थ्य समस्या", "Fever / Cold": "बुखार / सर्दी", "Family Function": "पारिवारिक कार्यक्रम", "Out of Station": "शहर से बाहर", "Medical Appointment": "डॉक्टर की अपॉइंटमेंट", "Personal Reason": "व्यक्तिगत कारण", "Religious Occasion": "धार्मिक अवसर", "Emergency at Home": "घर में आपातकाल", "Transport Issue": "यातायात समस्या", "Weather Related Issue": "मौसम की समस्या", "Parent Did Not Inform": "माता-पिता ने सूचना नहीं दी", "Reason Not Provided": "कारण नहीं बताया गया"
+            }
+        };
+
+        const t = (key) => translations[currentLang][key] || key;
+
+        // --- PWA MANIFEST GENERATOR ---
+        const manifest = {
+            "name": "Nurani Tuition",
+            "short_name": "Nurani",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#4f46e5",
+            "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/3413/3413535.png", "sizes": "512x512", "type": "image/png" }]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        document.getElementById('my-manifest').href = URL.createObjectURL(manifestBlob);
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('pwa-install');
+            if(installBtn) {
+                installBtn.classList.remove('hidden');
+                installBtn.addEventListener('click', () => {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((result) => { deferredPrompt = null; installBtn.classList.add('hidden'); });
+                });
+            }
+        });
+
+        // --- THEME & AUTH LOGIC ---
+
+        window.toggleTheme = () => {
+            const body = document.body;
+            if (body.dataset.theme === 'dark') {
+                body.dataset.theme = 'light';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.dataset.theme = 'dark';
+                localStorage.setItem('theme', 'dark');
+            }
+        };
+
+        window.switchRole = (role) => {
+            selectedLoginRole = role;
+            document.getElementById('btn-parent').classList.toggle('active', role === 'parent');
+            document.getElementById('btn-teacher').classList.toggle('active', role === 'teacher');
+            document.getElementById('login-error').classList.add('hidden');
+        };
+
+        window.resetSchoolCode = () => {
+            localStorage.removeItem('school_id_cache');
+            alert("School Code cleared. You will be prompted on next login.");
+        };
+
+        window.handleLogin = async () => {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-password').value.trim();
+            const errEl = document.getElementById('login-error');
+
+            if(!email || !pass) {
+                errEl.innerText = "All fields are required.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            if (!schoolId) {
+                schoolId = prompt("Please enter your School Code (Admin ID):");
+                if (!schoolId) {
+                    alert("School Code is required to login.");
+                    return;
+                }
+                localStorage.setItem('school_id_cache', schoolId);
+            }
+
+            try {
+                const cred = await signInWithEmailAndPassword(auth, email, pass);
+                const uid = cred.user.uid;
+
+                const userDocRef = doc(db, 'artifacts', appId, 'users', schoolId, 'managed_users', uid);
+                const userSnap = await getDoc(userDocRef);
+
+                if (!userSnap.exists()) {
+                    await signOut(auth);
+                    if(confirm("User not found. Incorrect School Code? Click OK to reset.")) {
+                        window.resetSchoolCode();
+                        schoolId = null;
+                    }
+                    throw new Error("User record not found in this School.");
+                }
+
+                const userData = userSnap.data();
+                
+                if (userData.role !== selectedLoginRole) {
+                    await signOut(auth);
+                    throw new Error(`Invalid Role: You are registered as a ${userData.role}. Please switch tabs.`);
+                }
+                
+                userRole = userData.role;
+                userProfile = userData;
+
+                window.location.reload(); 
+
+            } catch (e) {
+                errEl.innerText = e.message;
+                errEl.classList.remove('hidden');
+                console.error(e);
+            }
+        };
+
+        window.handleLogout = async () => {
+            await signOut(auth);
+            window.location.reload();
+        };
+
+        // --- BACKUP & RESTORE (TEACHER ONLY) ---
+        window.exportData = () => {
+            const dataStr = JSON.stringify(appData, null, 2);
+            const blob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nurani_backup_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+
+        window.importData = async (input) => {
+            if(!input.files.length) return;
+            if(!confirm("⚠️ WARNING: Restore will OVERWRITE existing data. Are you sure?")) return;
+            
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    // Iterate and restore
+                    const collections = ['students', 'attendance', 'homework', 'teachingLogs', 'syllabus', 'timetables'];
+                    let count = 0;
+                    
+                    for(const col of collections) {
+                        if(data[col] && Array.isArray(data[col])) {
+                            for(const item of data[col]) {
+                                if(item.id && item.id !== 'temp') {
+                                    await setDoc(doc(db, 'artifacts', appId, 'users', schoolId, col, item.id), item);
+                                    count++;
+                                }
+                            }
+                        }
+                    }
+                    alert(`Successfully restored ${count} records! Page will reload.`);
+                    window.location.reload();
+                } catch(err) {
+                    alert("Error parsing backup file: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        // --- INITIALIZATION ---
+
+        onAuthStateChanged(auth, async (user) => {
+            // Apply Theme
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.dataset.theme = savedTheme;
+
+            if (user) {
+                schoolId = localStorage.getItem('school_id_cache') || SCHOOL_ID;
+                
+                try {
+                    const userDoc = await getDoc(doc(db, 'artifacts', appId, 'users', schoolId, 'managed_users', user.uid));
+                    if(userDoc.exists()) {
+                        userProfile = userDoc.data();
+                        userRole = userProfile.role;
+                        currentUser = user;
+                        // Set Language Default for Parent, English for Teacher
+                        currentLang = userRole === 'parent' ? 'gu' : 'en'; 
+                        
+                        initApp();
+                    } else {
+                        throw new Error("Profile missing");
+                    }
+                } catch(e) {
+                    console.error("Auth Init Error:", e);
+                    await signOut(auth);
+                }
+            } else {
+                document.getElementById('auth-view').classList.remove('hidden');
+                document.getElementById('app-view').classList.add('hidden');
+            }
+        });
+
+        function initApp() {
+            document.getElementById('auth-view').classList.add('hidden');
+            document.getElementById('app-view').classList.remove('hidden');
+            
+            // Set User Info
+            document.getElementById('user-info').innerHTML = `
+                <div style="color:var(--primary)">${userRole.toUpperCase()}</div>
+                <div>${userProfile.name}</div>
+            `;
+
+            if(userRole === 'parent') {
+                document.getElementById('lang-switcher').classList.remove('hidden');
+                document.getElementById('lang-sel').value = currentLang;
+            } else {
+                document.getElementById('backup-ui').classList.remove('hidden');
+            }
+
+            // Register Chart Plugin Global
+            if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
+            renderNavigation();
+            startDataListeners();
+        }
+
+        function renderNavigation() {
+            const nav = document.getElementById('nav-container');
+            nav.innerHTML = '';
+
+            const link = (id, icon, label) => `
+                <div class="nav-link ${activePage === id ? 'active' : ''}" onclick="window.navigate('${id}')">
+                    <i class="${icon}" style="width:20px"></i> ${t(label)}
+                </div>`;
+
+            if (userRole === 'teacher') {
+                nav.innerHTML += link('dashboard', 'fa-solid fa-home', 'Dashboard');
+                nav.innerHTML += link('tuition', 'fa-solid fa-book-open', 'Tuition & HW');
+                nav.innerHTML += link('classes', 'fa-solid fa-chalkboard-user', 'Daily Classes');
+                nav.innerHTML += link('analytics', 'fa-solid fa-chart-pie', 'Analytics'); 
+            } else if (userRole === 'parent') {
+                nav.innerHTML += link('child_dash', 'fa-solid fa-child', 'Dashboard');
+                nav.innerHTML += link('child_att', 'fa-solid fa-calendar-check', 'Attendance');
+                nav.innerHTML += link('child_hw', 'fa-solid fa-pen-to-square', 'Homework');
+                nav.innerHTML += link('child_tt', 'fa-solid fa-clock', 'Timetable');
+            }
+            
+            if (userRole === 'teacher' && activePage === 'child_dash') activePage = 'dashboard';
+            if (userRole === 'parent' && activePage === 'dashboard') activePage = 'child_dash';
+            
+            window.navigate(activePage);
+        }
+
+        window.navigate = (page) => {
+            activePage = page;
+            renderPage();
+            
+            const links = document.querySelectorAll('.nav-link');
+            links.forEach(l => {
+                l.classList.remove('active');
+                if(l.getAttribute('onclick').includes(`'${page}'`)) l.classList.add('active');
+            });
+            
+            if(window.innerWidth <= 768) {
+                document.querySelector('aside').classList.remove('open');
+                document.querySelector('.sidebar-overlay').classList.remove('active');
+            }
+        };
+
+        window.setLanguage = (lang) => {
+            currentLang = lang;
+            renderNavigation();
+            renderPage();
+        };
+
+        function startDataListeners() {
+            const listen = (colName) => {
+                onSnapshot(collection(db, 'artifacts', appId, 'users', schoolId, colName), (snap) => {
+                    appData[colName] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    // Only re-render if we have data to prevent empty flashes, unless it's initial load
+                    renderPage();
+                }, (error) => {
+                    console.log("Error fetching " + colName, error);
+                });
+            };
+
+            listen('students');
+            listen('attendance');
+            listen('homework');
+            listen('teachingLogs');
+            listen('syllabus');
+            listen('timetables');
+        }
+
+        // --- RENDERERS ---
+
+        function renderPage() {
+            const main = document.getElementById('main-content');
+            // Remove previous classes
+            main.className = 'fade-in'; 
+            if (userRole === 'teacher') main.classList.add('teacher-bg');
+            
+            // Force reflow for animation restart
+            void main.offsetWidth;
+            
+            main.innerHTML = '';
+
+            if (userRole === 'teacher') {
+                if (activePage === 'dashboard') renderTeacherDashboard(main);
+                else if (activePage === 'tuition') renderTuitionManager(main);
+                else if (activePage === 'classes') renderDailyClasses(main);
+                else if (activePage === 'analytics') renderAnalytics(main);
+            } else {
+                if (activePage === 'child_dash') renderChildDashboard(main);
+                else if (activePage === 'child_att') renderChildAttendance(main);
+                else if (activePage === 'child_hw') renderChildHomework(main);
+                else if (activePage === 'child_tt') renderChildTimetable(main);
+            }
+        }
+
+        // --- TEACHER VIEWS ---
+
+        function renderTeacherDashboard(el) {
+            const myStudents = appData.students.filter(s => (userProfile.studentAccess || []).includes(s.id));
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+            const yestStr = yesterday.toISOString().split('T')[0];
+            
+            // Month Logic
+            const prevMonthDate = new Date(); prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+            const currentMonthStr = today.toISOString().slice(0, 7);
+            const prevMonthStr = prevMonthDate.toISOString().slice(0, 7);
+            
+            // Filter Dropdown
+            const filterVal = document.getElementById('dash-filter')?.value || 'current';
+            let targetMonth = currentMonthStr;
+            if (filterVal === 'prev') targetMonth = prevMonthStr;
+            else if (filterVal === 'custom') targetMonth = document.getElementById('dash-custom-month')?.value || currentMonthStr;
+
+            // Alerts Logic
+            const attendancePending = appData.attendance.filter(a => a.date === todayStr && (userProfile.studentAccess || []).includes(a.studentId)).length < myStudents.length;
+            const uncheckedHW = appData.homework.filter(h => h.date === yestStr && h.status === 'Pending' && (userProfile.studentAccess || []).includes(h.studentId)).length > 0;
+            
+            const daysMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const todayDay = daysMap[today.getDay()];
+            const missingTimetable = appData.timetables.filter(t => t.day === todayDay && (userProfile.studentAccess || []).includes(t.studentId)).length === 0;
+
+            let alertsHTML = '';
+            if(attendancePending) alertsHTML += `<div class="alert-item text-red-700 border-red-200"><i class="fa-solid fa-triangle-exclamation text-red-500"></i> <b>Pending Attendance:</b> Today's attendance incomplete.</div>`;
+            if(uncheckedHW) alertsHTML += `<div class="alert-item text-orange-700 border-orange-200"><i class="fa-solid fa-clock text-orange-500"></i> <b>Unchecked HW:</b> Yesterday's homework not fully checked.</div>`;
+            if(missingTimetable) alertsHTML += `<div class="alert-item text-blue-700 border-blue-200"><i class="fa-solid fa-calendar-xmark text-blue-500"></i> <b>Missing Timetable:</b> No classes scheduled for today (${todayDay}).</div>`;
+
+            // Attendance Summary Calculation
+            const attData = appData.attendance.filter(a => a.date.startsWith(targetMonth) && (userProfile.studentAccess || []).includes(a.studentId));
+            const hwData = appData.homework.filter(h => h.date.startsWith(targetMonth) && (userProfile.studentAccess || []).includes(h.studentId));
+
+            // Tomorrow Homework List
+            const hwGivenToday = appData.homework.filter(h => h.date === todayStr && h.given && (userProfile.studentAccess || []).includes(h.studentId));
+            
+            el.innerHTML = `
+                <h1>Teacher Dashboard</h1>
+                
+                ${alertsHTML ? `<div class="card mb-4 p-2 bg-white/80">${alertsHTML}</div>` : ''}
+                
+                <div class="card mb-4">
+                     <div class="flex gap-4 items-center flex-wrap">
+                        <select id="dash-filter" onchange="window.renderPage()" style="margin:0; width:auto;">
+                            <option value="current" ${filterVal==='current'?'selected':''}>This Month (${currentMonthStr})</option>
+                            <option value="prev" ${filterVal==='prev'?'selected':''}>Previous Month (${prevMonthStr})</option>
+                            <option value="custom" ${filterVal==='custom'?'selected':''}>Select Month</option>
+                        </select>
+                        ${filterVal==='custom' ? `<input type="month" id="dash-custom-month" value="${targetMonth}" onchange="window.renderPage()" style="margin:0; width:auto;">` : ''}
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <!-- Tomorrow Homework Reminder -->
+                    <div class="card span-2 border-indigo-200" style="background: rgba(240, 253, 250, 0.9);">
+                        <h3 class="text-indigo-700">📌 Tomorrow Homework Given (Given Today)</h3>
+                        <div class="mt-2">
+                            ${hwGivenToday.length === 0 ? '<p class="text-gray text-sm">No homework assigned for tomorrow yet.</p>' : 
+                            `<ul style="list-style:none;">
+                                ${hwGivenToday.map(h => {
+                                    const s = appData.students.find(stu => stu.id === h.studentId);
+                                    return `<li class="mb-2 p-3 bg-white rounded-xl shadow-sm border border-indigo-100 flex justify-between items-center transition hover:shadow-md">
+                                        <span class="font-bold text-indigo-900">${s?.name || 'Unknown'}</span>
+                                        <span class="text-gray-700 text-sm bg-indigo-50 px-3 py-1 rounded-lg">${h.details}</span>
+                                    </li>`;
+                                }).join('')}
+                            </ul>`}
+                        </div>
+                    </div>
+
+                    <!-- Student Summary Table -->
+                    <div class="card span-2">
+                        <h3>Student Performance (${targetMonth})</h3>
+                        <div style="overflow-x:auto;">
+                            <table class="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th class="text-center">Pres</th>
+                                        <th class="text-center">Abs</th>
+                                        <th class="text-center">Hol</th>
+                                        <th class="text-center">HW Done %</th>
+                                        <th class="text-center">HW Pending %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${myStudents.map(s => {
+                                        const sAtt = attData.filter(a => a.studentId === s.id);
+                                        const sHw = hwData.filter(h => h.studentId === s.id && h.given); // Only count days given
+                                        
+                                        const p = sAtt.filter(a => a.status === 'P').length;
+                                        const a_count = sAtt.filter(a => a.status === 'A').length;
+                                        const h = sAtt.filter(a => a.status === 'H').length;
+                                        
+                                        const hwDone = sHw.filter(w => w.status === 'Completed').length;
+                                        const hwTotal = sHw.length;
+                                        const donePerc = hwTotal ? Math.round((hwDone/hwTotal)*100) : 0;
+                                        const notDonePerc = hwTotal ? 100 - donePerc : 0;
+
+                                        return `<tr>
+                                            <td class="font-bold">${s.name}</td>
+                                            <td class="text-center text-green-600 font-bold">${p}</td>
+                                            <td class="text-center text-red-600 font-bold">${a_count}</td>
+                                            <td class="text-center text-orange-500 font-bold">${h}</td>
+                                            <td class="text-center text-indigo-600 font-bold">${donePerc}%</td>
+                                            <td class="text-center text-gray-500 font-bold">${notDonePerc}%</td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTuitionManager(el) {
+            const today = new Date();
+            const dateStr = document.getElementById('tuit-date')?.value || today.toISOString().split('T')[0];
+            
+            // For checking Yesterday's homework:
+            const d = new Date(dateStr);
+            d.setDate(d.getDate() - 1);
+            const yesterdayStr = d.toISOString().split('T')[0];
+            
+            const myStudents = appData.students.filter(s => (userProfile.studentAccess || []).includes(s.id));
+
+            el.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h1>Tuition Manager</h1>
+                    <input type="date" id="tuit-date" value="${dateStr}" onchange="window.renderPage()" style="width:auto; margin:0;">
+                </div>
+                
+                <div class="card p-0" style="background:transparent; box-shadow:none; border:none; backdrop-filter:none;">
+                    <div class="hidden md:grid" style="grid-template-columns: 1.5fr 1fr 1fr 1fr 0.5fr; gap:1rem; padding:0 1rem; font-weight:bold; color:var(--text-light); margin-bottom:0.5rem; text-transform:uppercase; font-size:0.75rem; letter-spacing:0.05em;">
+                        <div>Student</div>
+                        <div class="text-center">Attendance (Today)</div>
+                        <div class="text-center">Check Homework (Yesterday)</div>
+                        <div class="text-center">Assign Homework (Tomorrow)</div>
+                        <div></div>
+                    </div>
+                    ${myStudents.map(s => {
+                        const att = appData.attendance.find(a => a.studentId === s.id && a.date === dateStr);
+                        const hwToday = appData.homework.find(h => h.studentId === s.id && h.date === dateStr); // Giving for tmrw
+                        const hwYesterday = appData.homework.find(h => h.studentId === s.id && h.date === yesterdayStr); // Checking status
+
+                        return `
+                        <div class="tuition-row">
+                            <!-- Student Info -->
+                            <div>
+                                <div style="font-weight:700;">${s.name}</div>
+                                <div class="text-gray text-xs">${s.standard} | ${s.medium}</div>
+                                ${hwYesterday && hwYesterday.given ? 
+                                    `<div class="text-xs text-indigo-600 mt-1 p-1 bg-indigo-50 rounded border border-indigo-100 flex items-center gap-1">
+                                        <i class="fa-solid fa-clock-rotate-left"></i> <b>Yest HW:</b> ${hwYesterday.details || 'Task'}
+                                     </div>` : ''}
+                            </div>
+                            
+                            <!-- Attendance -->
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="mobile-label">Attendance</span>
+                                <div class="flex gap-2">
+                                    <div class="att-toggle ${att?.status==='P'?'att-p':''}" onclick="window.markAtt('${s.id}', 'P')">P</div>
+                                    <div class="att-toggle ${att?.status==='A'?'att-a':''}" onclick="window.markAtt('${s.id}', 'A')">A</div>
+                                    <div class="att-toggle ${att?.status==='H'?'att-h':''}" onclick="window.markAtt('${s.id}', 'H')">H</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Homework Check (Checking Yesterday's Work) -->
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="mobile-label">Check HW</span>
+                                <div class="flex gap-2">
+                                    <div class="hw-toggle ${hwYesterday?.status==='Completed'?'hw-done':'hw-neutral'}" onclick="window.markHomeworkStatus('${s.id}', '${yesterdayStr}', 'Completed')"><i class="fa-solid fa-check"></i></div>
+                                    <div class="hw-toggle ${hwYesterday?.status==='Not Completed'?'hw-miss':'hw-neutral'}" onclick="window.markHomeworkStatus('${s.id}', '${yesterdayStr}', 'Not Completed')"><i class="fa-solid fa-xmark"></i></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Homework Assign (For Tomorrow) -->
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="mobile-label">Assign HW</span>
+                                <div class="flex gap-2">
+                                    <div class="hw-toggle ${hwToday?.given?'hw-done':'hw-neutral'}" onclick="window.markHomeworkGiven('${s.id}', true)">Y</div>
+                                    <div class="hw-toggle ${hwToday && !hwToday.given?'hw-miss':'hw-neutral'}" onclick="window.markHomeworkGiven('${s.id}', false)">N</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Syllabus -->
+                            <div>
+                                <button class="btn btn-sm btn-outline w-full" onclick="window.showSyllabusManager('${s.id}')">Syllabus</button>
+                            </div>
+                        </div>
+                        ${att?.status === 'A' ? `<div class="text-xs text-red-500 mb-2 pl-4 flex items-center gap-1"><i class="fa-solid fa-circle-exclamation"></i> Reason: ${att.reason}</div>` : ''}
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // --- TEACHER ACTIONS ---
+
+        window.markAtt = async (sid, status) => {
+            const date = document.getElementById('tuit-date').value;
+            const existIndex = appData.attendance.findIndex(a => a.studentId === sid && a.date === date);
+            
+            // Optimistic Update
+            let oldData = null;
+            if (existIndex > -1) {
+                oldData = {...appData.attendance[existIndex]};
+                // Deselect logic
+                if (oldData.status === status) {
+                     appData.attendance.splice(existIndex, 1);
+                } else {
+                     appData.attendance[existIndex].status = status;
+                }
+            } else {
+                appData.attendance.push({ id: 'temp', studentId: sid, date, status, reason: '' });
+            }
+            renderPage(); // Update UI immediately
+
+            // Backend Update
+            try {
+                const q = query(collection(db, 'artifacts', appId, 'users', schoolId, 'attendance'), where('studentId', '==', sid), where('date', '==', date));
+                const snap = await getDocs(q);
+                
+                if (!snap.empty) {
+                     const docRef = snap.docs[0].ref;
+                     if (oldData && oldData.status === status) {
+                         await deleteDoc(docRef); // Deselect
+                     } else if (status === 'A') {
+                         window.openAbsentModal(sid, date, docRef.id);
+                     } else {
+                         await updateDoc(docRef, { status, reason: '' });
+                     }
+                } else {
+                     if (status === 'A') {
+                         window.openAbsentModal(sid, date, null);
+                     } else {
+                         await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'attendance'), { studentId: sid, date, status, reason: '' });
+                     }
+                }
+            } catch (e) {
+                console.error("Update failed", e);
+                // Revert on error would go here
+            }
+        };
+
+        window.openAbsentModal = (sid, date, docId) => {
+            document.getElementById('modal-container').innerHTML = `
+                <div class="modal">
+                    <div class="modal-content">
+                        <h3>Select Absent Reason</h3>
+                        <select id="absent-reason" class="w-full border p-2 rounded mb-4">
+                            ${ABSENT_REASONS.map(r => `<option>${r}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-primary w-full" onclick="window.saveAbsent('${sid}', '${date}', '${docId}')">Save Absent</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-container').classList.remove('hidden');
+        };
+
+        window.saveAbsent = async (sid, date, docId) => {
+            const reason = document.getElementById('absent-reason').value;
+            
+            // Local update
+            const exist = appData.attendance.find(a => a.studentId === sid && a.date === date);
+            if(exist) { exist.status = 'A'; exist.reason = reason; }
+            else { appData.attendance.push({studentId: sid, date, status: 'A', reason}); }
+            renderPage();
+
+            if (docId && docId !== 'null') {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', schoolId, 'attendance', docId), { status: 'A', reason });
+            } else {
+                await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'attendance'), { studentId: sid, date, status: 'A', reason });
+            }
+            
+            document.getElementById('modal-container').classList.add('hidden');
+        };
+
+        window.markHomeworkGiven = async (sid, isGiven) => {
+            const date = document.getElementById('tuit-date').value;
+            const existIndex = appData.homework.findIndex(h => h.studentId === sid && h.date === date);
+            
+            // Optimistic UI
+            let oldData = null;
+            if (existIndex > -1) {
+                oldData = {...appData.homework[existIndex]};
+                if (oldData.given === isGiven) {
+                     appData.homework.splice(existIndex, 1); // Deselect
+                } else {
+                     appData.homework[existIndex].given = isGiven;
+                }
+            } else {
+                 if (isGiven) appData.homework.push({ id:'temp', studentId: sid, date, given: true, details: '...', status: 'Pending' });
+                 else appData.homework.push({ id:'temp', studentId: sid, date, given: false, details:'', status:'N/A' });
+            }
+            renderPage();
+
+            const q = query(collection(db, 'artifacts', appId, 'users', schoolId, 'homework'), where('studentId', '==', sid), where('date', '==', date));
+            const snap = await getDocs(q);
+
+            if (!snap.empty) {
+                const docRef = snap.docs[0].ref;
+                if (oldData && oldData.given === isGiven) {
+                    await deleteDoc(docRef);
+                } else if (!isGiven) {
+                    await updateDoc(docRef, { given: false, details: '', status: 'N/A', reason: '' });
+                } else {
+                    const details = prompt("Enter homework details for tomorrow:");
+                    if(details) await updateDoc(docRef, { given: true, details, status: 'Pending', reason: '' });
+                }
+            } else {
+                if (isGiven) {
+                     const details = prompt("Enter homework details for tomorrow:");
+                     if(details) await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'homework'), { studentId: sid, date, given: true, details, status: 'Pending', reason: '' });
+                } else {
+                     await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'homework'), { studentId: sid, date, given: false, details: '', status: 'N/A', reason: '' });
+                }
+            }
+        };
+
+        window.markHomeworkStatus = async (sid, date, status) => {
+            // Find existing record for yesterday
+            let exist = appData.homework.find(h => h.studentId === sid && h.date === date);
+            
+            // If no record exists, create a dummy local one for optimistic UI
+            if (!exist) {
+                exist = { id: 'temp_' + Date.now(), studentId: sid, date: date, given: true, status: status, details: 'Manual Check', reason: '' };
+                appData.homework.push(exist);
+            } else {
+                // Toggle Logic
+                if (exist.status === status) exist.status = 'Pending';
+                else exist.status = status;
+                
+                // Ensure it's marked as given if we are checking it
+                exist.given = true;
+            }
+            
+            renderPage();
+
+            try {
+                const q = query(collection(db, 'artifacts', appId, 'users', schoolId, 'homework'), where('studentId', '==', sid), where('date', '==', date));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                     const docRef = snap.docs[0].ref;
+                     let updateData = { status: exist.status, given: true };
+                     
+                     if (status === 'Not Completed' && exist.status === 'Not Completed') {
+                         const reason = prompt("Reason homework not done?", "Did not understand");
+                         if(reason) updateData.reason = reason;
+                     }
+                     
+                     await updateDoc(docRef, updateData);
+                } else {
+                     // Create new doc since none existed
+                     let newData = { studentId: sid, date, given: true, details: 'Manual Check', status: exist.status, reason: '' };
+                     if (status === 'Not Completed') {
+                         const reason = prompt("Reason homework not done?", "Did not understand");
+                         if(reason) newData.reason = reason;
+                     }
+                     await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'homework'), newData);
+                }
+            } catch(e) {
+                console.error("HW Update Failed", e);
+                alert("Failed to save. Check connection.");
+            }
+        };
+        
+        // --- SYLLABUS MANAGER ---
+        
+        window.showSyllabusManager = (sid) => {
+             const studentSubjects = appData.syllabus.filter(s => s.studentId === sid);
+             // Group by Subject (FIXED spread syntax)
+             const subjects = [...new Set(studentSubjects.map(s => s.subject))];
+             
+             document.getElementById('modal-container').innerHTML = `
+                <div class="modal">
+                    <div class="modal-content">
+                        <h3>Syllabus: ${appData.students.find(s=>s.id===sid)?.name}</h3>
+                        <div class="flex gap-2 mb-4">
+                            <input id="new-sub-name" placeholder="New Subject Name" style="margin:0;">
+                            <button class="btn btn-primary" onclick="window.addSubject('${sid}')">Add Subject</button>
+                        </div>
+                        <div id="syllabus-list">
+                            ${subjects.map(sub => {
+                                const chapters = studentSubjects.filter(s => s.subject === sub);
+                                return `
+                                <div class="syllabus-subject">
+                                    <div class="syllabus-header" onclick="this.nextElementSibling.classList.toggle('open')">
+                                        ${sub} <span class="text-xs text-gray">(${chapters.length} chapters)</span>
+                                    </div>
+                                    <div class="syllabus-body open">
+                                        ${chapters.map(c => `
+                                            <div class="syllabus-item">
+                                                <span>${c.chapter}</span>
+                                                <button class="btn-icon text-red-500" onclick="window.deleteSyllabus('${c.id}', '${sid}')"><i class="fa fa-trash"></i></button>
+                                            </div>
+                                        `).join('')}
+                                        <div class="p-2 border-t flex gap-2">
+                                            <input id="chap-${sub}" placeholder="Add Chapter..." style="margin:0; font-size:0.8rem;">
+                                            <button class="btn btn-sm btn-outline" onclick="window.addChapter('${sid}', '${sub}')">Add</button>
+                                        </div>
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                        <button class="btn btn-outline w-full" onclick="document.getElementById('modal-container').classList.add('hidden')">Close</button>
+                    </div>
+                </div>`;
+             document.getElementById('modal-container').classList.remove('hidden');
+        };
+
+        window.addSubject = async (sid) => {
+            const sub = document.getElementById('new-sub-name').value;
+            if(!sub) return;
+            // Add a dummy chapter to initialize subject
+            await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'syllabus'), {
+                studentId: sid, subject: sub, chapter: 'Introduction', status: 'Pending'
+            });
+            window.showSyllabusManager(sid); // Refresh modal
+        };
+
+        window.addChapter = async (sid, sub) => {
+            const chap = document.getElementById(`chap-${sub}`).value;
+            if(!chap) return;
+            await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'syllabus'), {
+                studentId: sid, subject: sub, chapter: chap, status: 'Pending'
+            });
+            window.showSyllabusManager(sid);
+        };
+        
+        window.deleteSyllabus = async (id, sid) => {
+            if(confirm("Delete this chapter?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', schoolId, 'syllabus', id));
+                window.showSyllabusManager(sid);
+            }
+        };
+
+        // --- DAILY CLASSES ---
+
+        function renderDailyClasses(el) {
+            const myStudents = appData.students.filter(s => (userProfile.studentAccess || []).includes(s.id)).map(s => s.id);
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = new Date();
+            const todayName = days[today.getDay()];
+            const selectedDay = document.getElementById('class-day-filter')?.value || todayName;
+            
+            const logs = appData.teachingLogs.filter(l => l.date === today.toISOString().split('T')[0]);
+            // Filter by selected day ONLY
+            const timetable = appData.timetables.filter(t => myStudents.includes(t.studentId) && t.day === selectedDay); 
+            timetable.sort((a,b) => a.startTime.localeCompare(b.startTime));
+
+            el.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h1>Daily Classes</h1>
+                    <select id="class-day-filter" onchange="window.renderPage()" style="width:auto; margin:0;">
+                        ${days.map(d => `<option value="${d}" ${d===selectedDay?'selected':''}>${d}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div class="grid">
+                    <div class="card span-2">
+                        <h3>Schedule for ${selectedDay}</h3>
+                        <div style="overflow-x:auto;">
+                            <table class="styled-table">
+                                <thead><tr><th>Time</th><th>Student</th><th>Subject</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    ${timetable.map(t => {
+                                        const s = appData.students.find(stu => stu.id === t.studentId);
+                                        return `<tr>
+                                            <td>${t.startTime} - ${t.endTime}</td>
+                                            <td>${s?.name || 'Unknown'}</td>
+                                            <td>${t.subject}</td>
+                                            <td><button class="btn btn-sm btn-outline" onclick="window.deleteTimetable('${t.id}')">Delete</button></td>
+                                        </tr>`;
+                                    }).join('')}
+                                    ${timetable.length === 0 ? '<tr><td colspan="4" class="text-center p-4 text-gray">No classes scheduled.</td></tr>' : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                         <button class="btn btn-primary mt-4" onclick="window.openTimetableModal()">+ Add Schedule</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.openTimetableModal = () => {
+            const myStudents = appData.students.filter(s => (userProfile.studentAccess || []).includes(s.id));
+            const studentOpts = myStudents.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            
+            // Collect Unique Subjects (FIXED spread syntax)
+            const allSubjects = [...new Set(appData.syllabus.map(s => s.subject))];
+            const subjectOpts = allSubjects.map(s => `<option value="${s}">${s}</option>`).join('');
+            
+            document.getElementById('modal-container').innerHTML = `
+                <div class="modal">
+                    <div class="modal-content">
+                        <h3>Add Class Schedule</h3>
+                        <label>Student</label>
+                        <select id="tt-st">${studentOpts}</select>
+                        
+                        <label>Day</label>
+                        <select id="tt-day">
+                            <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+                            <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+                        </select>
+                        
+                        <div class="flex gap-2">
+                            <div class="w-full"><label>Start</label><input type="time" id="tt-start"></div>
+                            <div class="w-full"><label>End</label><input type="time" id="tt-end"></div>
+                        </div>
+                        
+                        <label>Subject</label>
+                        <select id="tt-sub">
+                            <option value="">-- Select Subject --</option>
+                            ${subjectOpts}
+                        </select>
+                        <input id="tt-sub-text" placeholder="Or type new subject" class="mt-2">
+                        
+                        <div class="flex gap-2 mt-4">
+                            <button class="btn btn-primary w-full" onclick="window.saveTimetable()">Save & Add More</button>
+                            <button class="btn btn-outline w-full" onclick="document.getElementById('modal-container').classList.add('hidden')">Close</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        };
+
+        window.saveTimetable = async () => {
+            const studentId = document.getElementById('tt-st').value;
+            const day = document.getElementById('tt-day').value;
+            const startTime = document.getElementById('tt-start').value;
+            const endTime = document.getElementById('tt-end').value;
+            let subject = document.getElementById('tt-sub').value;
+            const subText = document.getElementById('tt-sub-text').value;
+
+            if(subText) subject = subText;
+            if(!studentId || !day || !startTime || !subject) return alert("Fill required fields");
+
+            await addDoc(collection(db, 'artifacts', appId, 'users', schoolId, 'timetables'), {
+                studentId, day, startTime, endTime, subject
+            });
+            
+            // Reset fields but keep modal open
+            document.getElementById('tt-start').value = '';
+            document.getElementById('tt-end').value = '';
+            document.getElementById('tt-sub').value = '';
+            document.getElementById('tt-sub-text').value = '';
+            
+            window.showToast("Schedule Added!");
+        };
+
+        window.deleteTimetable = async (tid) => {
+            if(confirm("Delete this schedule?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', schoolId, 'timetables', tid));
+            }
+        };
+        
+        window.showToast = (msg) => {
+             const t = document.createElement('div');
+             t.style.cssText = "position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.8); color:#fff; padding:12px 24px; border-radius:12px; z-index:9999; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight:600; animation: fadeIn 0.3s;";
+             t.innerText = msg;
+             document.body.appendChild(t);
+             setTimeout(() => t.remove(), 2000);
+        };
+
+        // --- ANALYTICS ---
+        
+        function renderAnalytics(el) {
+            const myStudents = appData.students.filter(s => (userProfile.studentAccess || []).includes(s.id));
+            const opts = `<option value="all">All Students</option>` 
+                       + `<option value="high">Highest Attendance</option>` 
+                       + `<option value="low">Lowest Attendance</option>` 
+                       + myStudents.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+            el.innerHTML = `
+                <h1>Analytics & Performance</h1>
+                <div class="card mb-4">
+                    <label>View Filter</label>
+                    <select id="an-st-filter" onchange="window.updateAnalytics()">${opts}</select>
+                </div>
+                
+                <div class="grid">
+                    <!-- Performance Ranking Card (New Premium Feature) -->
+                    <div class="card span-2">
+                        <h3>Performance Ranking (Attendance)</h3>
+                        <div id="an-ranking" class="flex flex-col gap-2 mt-2">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <div class="card" style="height:350px;">
+                        <canvas id="an-att-chart"></canvas>
+                    </div>
+                    <div class="card">
+                        <h3>Absent Details</h3>
+                        <div id="an-absent-list" class="mt-4" style="max-height:280px; overflow-y:auto;"></div>
+                    </div>
+                </div>
+            `;
+            window.updateAnalytics();
+        }
+
+        window.updateAnalytics = () => {
+            const filter = document.getElementById('an-st-filter').value;
+            const myIds = (userProfile.studentAccess || []);
+            let targetIds = myIds;
+
+            // Compute Ranking
+            const ranking = myIds.map(sid => {
+                const total = appData.attendance.filter(a => a.studentId === sid).length;
+                const present = appData.attendance.filter(a => a.studentId === sid && a.status === 'P').length;
+                const perc = total ? Math.round((present/total)*100) : 0;
+                const s = appData.students.find(x=>x.id===sid);
+                return { sid, name: s?.name || 'Unknown', perc };
+            });
+            ranking.sort((a,b) => b.perc - a.perc);
+
+            // Render Ranking UI
+            const rankEl = document.getElementById('an-ranking');
+            if(rankEl && filter === 'all') {
+                const top3 = ranking.slice(0, 3);
+                const bottom3 = ranking.slice(-3).reverse(); // Worst first
+                
+                let html = `<div class="grid" style="grid-template-columns: 1fr 1fr; gap:1.5rem;">
+                    <div>
+                        <h4 class="text-green-dark mb-3 flex items-center gap-2"><i class="fa-solid fa-trophy"></i> Top Performers</h4>
+                        ${top3.map((r,i) => `
+                            <div class="rank-item">
+                                <span class="rank-badge bg-green-soft text-green-dark">${i+1}</span> 
+                                <span class="rank-name">${r.name}</span>
+                                <span class="rank-perc text-green-dark">${r.perc}%</span>
+                            </div>`).join('')}
+                    </div>
+                    <div>
+                        <h4 class="text-red-dark mb-3 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i> Needs Attention</h4>
+                        ${bottom3.map((r,i) => `
+                            <div class="rank-item">
+                                <span class="rank-badge bg-red-soft text-red-dark">${ranking.length-i}</span> 
+                                <span class="rank-name">${r.name}</span>
+                                <span class="rank-perc text-red-dark">${r.perc}%</span>
+                            </div>`).join('')}
+                    </div>
+                </div>`;
+                rankEl.innerHTML = html;
+            } else if (rankEl) {
+                rankEl.innerHTML = "<p class='text-gray'>Select 'All Students' to see ranking.</p>";
+            }
+
+            // Chart Filtering
+            if (filter === 'high' && ranking.length > 0) targetIds = [ranking[0].sid];
+            else if (filter === 'low' && ranking.length > 0) targetIds = [ranking[ranking.length-1].sid];
+            else if (filter !== 'all') targetIds = [filter];
+
+            let attData = appData.attendance.filter(a => targetIds.includes(a.studentId));
+
+            const stats = { P: 0, A: 0, H: 0 };
+            const absents = [];
+            attData.forEach(a => {
+                if(stats[a.status] !== undefined) stats[a.status]++;
+                if(a.status === 'A') absents.push(a);
+            });
+
+            // Update Chart
+            const ctx = document.getElementById('an-att-chart');
+            if (window.analyticsChart) window.analyticsChart.destroy();
+            
+            const total = stats.P + stats.A + stats.H;
+            
+            window.analyticsChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Present', 'Absent', 'Holiday'],
+                    datasets: [{ 
+                        data: [stats.P, stats.A, stats.H], 
+                        backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        title: {display: true, text: 'Attendance Distribution', font:{size:16}},
+                        datalabels: { 
+                            color: '#fff', 
+                            font: {weight:'bold'}, 
+                            formatter: (v) => v > 0 ? `${v} (${Math.round(v/total*100)}%)` : '' 
+                        } 
+                    } 
+                },
+                plugins: [ChartDataLabels]
+            });
+
+            // Update List (Improved UI)
+            const listEl = document.getElementById('an-absent-list');
+            if (absents.length === 0) listEl.innerHTML = '<p class="text-gray text-center">No absences recorded.</p>';
+            else {
+                absents.sort((a,b) => b.date.localeCompare(a.date));
+                listEl.innerHTML = `<table class="styled-table" style="font-size:0.8rem;">
+                    <thead><tr><th>Date</th><th>Day</th><th>Student</th><th>Reason</th></tr></thead>
+                    <tbody>` + 
+                    absents.map(a => {
+                        const s = appData.students.find(x => x.id === a.studentId);
+                        const d = new Date(a.date);
+                        const dayName = d.toLocaleDateString('en-US', {weekday:'short'});
+                        return `<tr>
+                            <td class="font-bold">${a.date}</td>
+                            <td>${dayName}</td>
+                            <td>${s?.name||''}</td>
+                            <td class="text-red-500">${a.reason || 'Unknown'}</td>
+                        </tr>`;
+                    }).join('') + `</tbody></table>`;
+            }
+        };
+
+        // --- PARENT VIEWS ---
+
+        function getMyChild() {
+            return appData.students.find(s => s.id === userProfile.childStudentId);
+        }
+
+        function renderChildDashboard(el) {
+            const child = getMyChild();
+            if(!child) return el.innerHTML = `<div class="p-4 text-center">No student linked. Contact Admin.</div>`;
+
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            
+            const prevMonthDate = new Date(); prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+            const currentMonthStr = today.toISOString().slice(0, 7);
+            const prevMonthStr = prevMonthDate.toISOString().slice(0, 7);
+            
+            const filterVal = document.getElementById('parent-month')?.value || 'current';
+            let targetMonth = currentMonthStr;
+            if (filterVal === 'prev') targetMonth = prevMonthStr;
+
+            // Today's Status
+            const todayAtt = appData.attendance.find(a => a.studentId === child.id && a.date === todayStr);
+            const todayHW = appData.homework.find(h => h.studentId === child.id && h.date === todayStr); // Assigned today for tomorrow
+            
+            // Performance Calcs
+            const attList = appData.attendance.filter(a => a.studentId === child.id && a.date.startsWith(targetMonth));
+            const present = attList.filter(a => a.status === 'P').length;
+            const absent = attList.filter(a => a.status === 'A').length;
+            const holiday = attList.filter(a => a.status === 'H').length;
+            const attPerc = attList.length ? Math.round((present/attList.length)*100) : 0;
+
+            const hwList = appData.homework.filter(h => h.studentId === child.id && h.date.startsWith(targetMonth) && h.given);
+            const hwDone = hwList.filter(h => h.status === 'Completed').length;
+            const hwPerc = hwList.length ? Math.round((hwDone/hwList.length)*100) : 0;
+
+            el.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h1>${child.name}</h1>
+                        <p class="text-gray">${child.standard} | ${child.medium}</p>
+                    </div>
+                    <select id="parent-month" onchange="window.renderPage()" style="width:auto; margin:0;">
+                        <option value="current" ${filterVal==='current'?'selected':''}>${t('This Month')}</option>
+                        <option value="prev" ${filterVal==='prev'?'selected':''}>${t('Previous Month')}</option>
+                    </select>
+                </div>
+                
+                <div class="grid">
+                    <div class="card bg-green-50 border-green-200" style="background: rgba(240, 253, 244, 0.9);">
+                        <div class="text-gray text-xs font-bold uppercase mb-1">${t('Today\'s Status')}</div>
+                        <div class="text-xl font-bold ${todayAtt?.status==='A'?'text-red-600':'text-green-600'}">
+                            ${todayAtt ? t(todayAtt.status==='P'?'Present':(todayAtt.status==='A'?'Absent':'Holiday')) : t('Pending')}
+                        </div>
+                    </div>
+                    <div class="card bg-indigo-50 border-indigo-200" style="background: rgba(238, 242, 255, 0.9);">
+                        <div class="text-gray text-xs font-bold uppercase mb-1">${t('Given Today')}</div>
+                        <div class="text-sm font-bold text-indigo-700">
+                            ${todayHW && todayHW.given ? todayHW.details : t('Not Given')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid mt-4">
+                    <div class="card">
+                        <h3>${t('Attendance')} (${attPerc}%)</h3>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span>${t('Present')}: <b>${present}</b></span>
+                            <span>${t('Absent')}: <b>${absent}</b></span>
+                        </div>
+                        <div style="height:200px; margin-top:10px;"><canvas id="parent-att-chart"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <h3>${t('Homework')} (${hwPerc}%)</h3>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span>${t('Done')}: <b>${hwDone}</b></span>
+                            <span>${t('Pending')}: <b>${hwList.length - hwDone}</b></span>
+                        </div>
+                        <div style="height:200px; margin-top:10px;"><canvas id="parent-hw-chart"></canvas></div>
+                    </div>
+                </div>
+            `;
+
+            Chart.register(ChartDataLabels);
+            
+            new Chart(document.getElementById('parent-att-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: [t('Present'), t('Absent'), t('Holiday')],
+                    datasets: [{ data: [present, absent, holiday], backgroundColor: ['#10b981', '#ef4444', '#f59e0b'] }]
+                },
+                options: { maintainAspectRatio: false, plugins: { datalabels: {color:'#fff', formatter: v=>v>0?v:''} } }
+            });
+
+            new Chart(document.getElementById('parent-hw-chart'), {
+                type: 'pie',
+                data: {
+                    labels: [t('Done'), t('Pending')],
+                    datasets: [{ data: [hwDone, hwList.length - hwDone], backgroundColor: ['#6366f1', '#e2e8f0'] }]
+                },
+                options: { maintainAspectRatio: false, plugins: { datalabels: {color:'#000', formatter: v=>v>0?v:''} } }
+            });
+        }
+
+        function renderChildAttendance(el) {
+            const child = getMyChild();
+            const monthVal = document.getElementById('att-month')?.value || new Date().toISOString().slice(0,7);
+            const att = appData.attendance.filter(a => a.studentId === child.id && a.date.startsWith(monthVal)).sort((a,b) => b.date.localeCompare(a.date));
+            
+            el.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h1>${t('Attendance')}</h1>
+                    <input type="month" id="att-month" value="${monthVal}" onchange="window.renderPage()" style="width:auto;">
+                </div>
+                <div class="card p-0">
+                    <table class="styled-table">
+                        <thead><tr><th>${t('Date')}</th><th>${t('Day')}</th><th>${t('Status')}</th><th>${t('Reason')}</th></tr></thead>
+                        <tbody>
+                            ${att.map(a => {
+                                const d = new Date(a.date);
+                                const dayName = d.toLocaleDateString('en-US', {weekday: 'long'});
+                                const statusKey = a.status==='P'?'Present':(a.status==='A'?'Absent':'Holiday');
+                                const badgeClass = a.status==='P'?'bg-green':(a.status==='A'?'bg-red':'bg-yellow');
+                                
+                                return `<tr>
+                                    <td>${a.date}</td>
+                                    <td>${t(dayName)}</td>
+                                    <td><span class="status-badge ${badgeClass}">${t(statusKey)}</span></td>
+                                    <td>${a.reason ? t(a.reason) : '-'}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    ${att.length === 0 ? `<div class="p-4 text-center text-gray">${t('No logs')}</div>` : ''}
+                </div>
+            `;
+        }
+
+        function renderChildHomework(el) {
+            const child = getMyChild();
+            const monthVal = document.getElementById('hw-month')?.value || new Date().toISOString().slice(0,7);
+            const hw = appData.homework.filter(h => h.studentId === child.id && h.date.startsWith(monthVal)).sort((a,b) => b.date.localeCompare(a.date));
+
+            el.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h1>${t('Homework')}</h1>
+                    <input type="month" id="hw-month" value="${monthVal}" onchange="window.renderPage()" style="width:auto;">
+                </div>
+                <div class="card p-0">
+                    <table class="styled-table">
+                        <thead><tr><th>${t('Date')}</th><th>${t('Day')}</th><th>${t('Details')}</th><th>${t('Status')}</th></tr></thead>
+                        <tbody>
+                            ${hw.map(h => {
+                                const d = new Date(h.date);
+                                const dayName = d.toLocaleDateString('en-US', {weekday: 'long'});
+                                let statusText = 'Pending';
+                                let badge = 'bg-red';
+                                if(h.status === 'Completed') { statusText = 'Yes'; badge = 'bg-green'; }
+                                else { statusText = 'No'; }
+                                
+                                return `<tr>
+                                    <td>${h.date}</td>
+                                    <td>${t(dayName)}</td>
+                                    <td>${h.given ? h.details : t('Not Given')}</td>
+                                    <td>${h.given ? `<span class="status-badge ${badge}">${t(statusText)}</span>` : '-'}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    ${hw.length === 0 ? `<div class="p-4 text-center text-gray">${t('No logs')}</div>` : ''}
+                </div>
+            `;
+        }
+        
+        function renderChildTimetable(el) {
+            const child = getMyChild();
+            const tt = appData.timetables.filter(t => t.studentId === child.id);
+            const days = { 'Monday':1, 'Tuesday':2, 'Wednesday':3, 'Thursday':4, 'Friday':5, 'Saturday':6, 'Sunday':7 };
+            tt.sort((a,b) => (days[a.day] - days[b.day]) || a.startTime.localeCompare(b.startTime));
+
+            el.innerHTML = `
+                <h1>${t('Timetable')}</h1>
+                <div class="card p-0 mt-4">
+                    <table class="styled-table">
+                        <thead><tr><th>${t('Day')}</th><th>${t('Time')}</th><th>${t('Subject')}</th></tr></thead>
+                        <tbody>
+                            ${tt.map(item => `<tr>
+                                <td class="font-bold">${t(item.day) || item.day}</td>
+                                <td>${item.startTime} - ${item.endTime}</td>
+                                <td>${item.subject}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                    ${tt.length === 0 ? `<div class="p-4 text-center text-gray">${t('No logs')}</div>` : ''}
+                </div>
+            `;
+        }
+
+        window.toggleSidebar = () => {
+            document.querySelector('aside').classList.toggle('open');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        };
+
+    </script>
+</body>
+</html>
